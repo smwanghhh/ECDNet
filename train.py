@@ -19,7 +19,7 @@ global epoch
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--data', type=str, default='rafdb', help='data.')
+    parser.add_argument('--data', type=str, default='caer', help='data.')
     parser.add_argument('-c', '--checkpoint', type=str, default= None,  help='load disentangle model')#'./2/acc_models.pth'
     parser.add_argument('--batch_size', type=int, default=64, help='Batch size.')
     parser.add_argument('--val_batch_size', type=int, default=64, help='Batch size for validation.')
@@ -73,6 +73,14 @@ def run_training():
     elif args.data == 'affectnet':
         train_dataset = AffectNet('../datasets/AffectNet-8_Face/', phase='train', transform=data_transforms, basic_aug=True)
         val_dataset = AffectNet('../datasets/AffectNet-8_Face/', phase='test', transform=data_transforms_val)
+        class_num = 7
+        class_name = ['surprise', 'fear', 'disgust', 'happy', 'sad', 'angry', 'neutral']
+        data_w = train_dataset.weight()
+        data_dis = torch.cuda.FloatTensor(data_w)
+        
+    elif args.data == 'caer':
+        train_dataset = CAER('/home/wangshanmin/datasets/CAER_S_Face/', phase='train', transform=data_transforms, basic_aug=True)
+        val_dataset = CAER('/home/wangshanmin/datasets/CAER_S_Face/', phase='test', transform=data_transforms_val)
         class_num = 7
         class_name = ['surprise', 'fear', 'disgust', 'happy', 'sad', 'angry', 'neutral']
         data_w = train_dataset.weight()
@@ -175,9 +183,9 @@ def run_training():
             loss_regu = torch.tensor(0.).cuda()
             for index in zip(neu_out, app_out):
                 loss_regu += criterion_rec(index[0], index[1])
-            smooth_loss = torch.mean(torch.abs(geo[:, 0, :-1, :] - geo[:, 0, 1:, :])+ torch.abs(geo[:, 1, :-1, :] - geo[:, 1, 1:, :]))
-            smooth_loss += torch.mean(torch.abs(geo[:, 0, :, :-1] - geo[:, 0, :, 1:]) + torch.abs(geo[:, 1, :, :-1] - geo[:, 1, :, 1:]))
-            loss = loss_rec * args.w1 + loss_cls * args.w2 + loss_regu * args.w3 + smooth_loss
+            #smooth_loss = torch.mean(torch.abs(geo[:, 0, :-1, :] - geo[:, 0, 1:, :])+ torch.abs(geo[:, 1, :-1, :] - geo[:, 1, 1:, :]))
+            #smooth_loss += torch.mean(torch.abs(geo[:, 0, :, :-1] - geo[:, 0, :, 1:]) + torch.abs(geo[:, 1, :, :-1] - geo[:, 1, :, 1:]))
+            loss = loss_rec * args.w1 + loss_cls * args.w2 + loss_regu * args.w3
             loss.backward()
             optimizer.step()
             _, predicts = torch.max(logit, 1)
@@ -185,7 +193,6 @@ def run_training():
             correct_sum += correct_num
             train_clloss += loss_cls
             train_recloss += loss_rec
-        print(smooth_loss)
         train_acc = correct_sum.float() / float(train_dataset.__len__())
         train_clloss = train_clloss / iter_cnt
         train_recloss = train_recloss / iter_cnt
